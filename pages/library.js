@@ -15,3 +15,13 @@ const _pv=PAGES.Video;PAGES.Video=p=>{_pv(p);const c=col(p);
  el('button','Delete video',delVideo,c);el('button','Export frame JPG',()=>exportImg('jpg'),c);el('button','Export frame PNG',()=>exportImg('png'),c);el('button','Export project (.json)',expProj,c)};
 ['Masks','Windows'].forEach(n=>{const f=PAGES[n];PAGES[n]=p=>{f(p);const c=col(p);el('button','Export project (.json)',expProj,c);el('button','Export frame JPG',()=>exportImg('jpg'),c)}});
 go(cur);
+/* ---------- layout: viewer perusa. panel drag-la resize (gap bar), Hide panel (H key), Fullscreen ---------- */
+const gap=document.createElement('div');gap.id='gap';$('#panel').before(gap);
+const setPH=h=>{const v=clamp(h,60,innerHeight*.75);document.documentElement.style.setProperty('--ph',v+'px');localStorage.setItem('mgph',v);window.drawOv&&drawOv()};
+{const h=+localStorage.getItem('mgph');if(h)setPH(h)}
+gap.onpointerdown=e=>{gap.setPointerCapture(e.pointerId);gap.onpointermove=ev=>setPH(innerHeight-ev.clientY-$('#tabs').offsetHeight)};gap.onpointerup=()=>gap.onpointermove=null;
+const hp=el('button','Hide panel',()=>{const h=!$('#panel').hidden;$('#panel').hidden=gap.hidden=h;hp.textContent=h?'Show panel':'Hide panel';setTimeout(()=>window.drawOv&&drawOv(),60)});
+const fsb=el('button','Fullscreen',()=>document.fullscreenElement?document.exitFullscreen():$('#viewer').requestFullscreen());
+$('header').insertBefore(hp,$('#undo'));$('header').insertBefore(fsb,$('#undo'));
+addEventListener('keydown',e=>{if(e.key=='h'&&!/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName))hp.click()});
+document.addEventListener('fullscreenchange',()=>setTimeout(()=>window.drawOv&&drawOv(),100));
