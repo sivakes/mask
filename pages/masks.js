@@ -4,7 +4,7 @@ let vid=null;const tNow=()=>vid?vid.currentTime:0,ML=()=>S.m||(S.m=[]);
 let selM=0,dbg=false,erase=false;const ov=document.createElement('canvas');ov.id='ov';$('#viewer').append(ov);
 const NEWM=type=>({id:Date.now()+Math.random(),type,on:true,done:false,inv:false,op:1,fe:.3,cx:.5,cy:.5,w:.25,h:.2,ang:0,size:.04,strokes:[],pts:[],lo:.55,hi:1,hue:0,hr:20,ad:{},pa:0,pc:'#ff8800',pc2:'#3a7bd5',pg:'none',pm:0,bm:'color',track:null,dx:0,dy:0});
 const editable=()=>{const L=ML()[selM];return L&&!L.done&&MG[cur]&&MG[cur].includes(L.type)?L:null};
-function trackAt(L,t){let x=L.dx,y=L.dy;const k=L.track;if(k&&k.length){let i=0;while(i<k.length-1&&k[i+1][0]<=t)i++;const a=k[i],b=k[Math.min(i+1,k.length-1)],u=b[0]>a[0]?clamp((t-a[0])/(b[0]-a[0])):0;x+=a[1]+(b[1]-a[1])*u;y+=a[2]+(b[2]-a[2])*u}return[x,y]}
+function trackAt(L,t){let x=L.dx,y=L.dy,v=1;const k=L.track;if(k&&k.length){let i=0;while(i<k.length-1&&k[i+1][0]<=t)i++;const a=k[i],b=k[Math.min(i+1,k.length-1)],u=b[0]>a[0]?clamp((t-a[0])/(b[0]-a[0])):0;x+=a[1]+(b[1]-a[1])*u;y+=a[2]+(b[2]-a[2])*u;v=(a[3]??1)+((b[3]??1)-(a[3]??1))*u}return[x,y,v]}
 /* brush + pen are rasterised into a small alpha map, feather = blur */
 function ras(L,mw,mh){const k=[L.type,L.size,L.fe,L.strokes.length,(L.strokes.at(-1)||{p:[]}).p.length,L.pts.length,mw,mh].join(),r=RT[L.id];if(r&&r.k==k)return r;
  const a=document.createElement('canvas');a.width=mw;a.height=mh;const g=a.getContext('2d');g.fillStyle=g.strokeStyle='#fff';g.lineCap=g.lineJoin='round';
@@ -13,14 +13,14 @@ function ras(L,mw,mh){const k=[L.type,L.size,L.fe,L.strokes.length,(L.strokes.at
  const b=document.createElement('canvas');b.width=mw;b.height=mh;const q=b.getContext('2d');q.filter=`blur(${L.fe*mh*.06}px)`;q.drawImage(a,0,0);
  const d=q.getImageData(0,0,mw,mh).data,A=new Uint8Array(mw*mh);for(let i=0;i<A.length;i++)A[i]=d[i*4+3];return RT[L.id]={k,A,mw,mh}}
 /* alpha (0..1) of a mask at normalised x,y for pixel colour r,g,b */
-function maskFn(L,asp,t){const[dx,dy]=trackAt(L,t),ca=Math.cos(-L.ang),sa=Math.sin(-L.ang),fe=L.fe,W=Math.max(.01,L.w),Hh=Math.max(.01,L.h);let f;
+function maskFn(L,asp,t){const[dx,dy,vs]=trackAt(L,t),ca=Math.cos(-L.ang),sa=Math.sin(-L.ang),fe=L.fe,W=Math.max(.01,L.w),Hh=Math.max(.01,L.h);let f;
  if(L.type=='radial'||L.type=='rect'||L.type=='linear')f=(x,y)=>{const u=(x-L.cx-dx)*asp,v=y-L.cy-dy,p=u*ca-v*sa,q=u*sa+v*ca;
   if(L.type=='linear'){const e=fe*.5+.001;return 1-ss(-e,e,q)}
   const d=L.type=='radial'?Math.hypot(p/W,q/Hh):Math.max(Math.abs(p)/W,Math.abs(q)/Hh);return 1-ss(1-fe-.001,1,d)};
  else if(L.type=='luma')f=(x,y,r,g,b)=>{const l=.2126*r+.7152*g+.0722*b,e=fe*.3+.001;return ss(L.lo-e,L.lo,l)*(1-ss(L.hi,L.hi+e,l))};
  else if(L.type=='color')f=(x,y,r,g,b)=>{const[h,s]=toHsl(r,g,b);let d=Math.abs(h-L.hue);d=Math.min(d,360-d);return(1-ss(L.hr,L.hr+fe*60+1,d))*ss(.05,.2,s)};
  else{const R=ras(L,MW,Math.round(MW/asp));f=(x,y)=>R.A[Math.min(R.mh-1,Math.max(0,((y-dy)*(R.mh-1)+.5)|0))*R.mw+Math.min(R.mw-1,Math.max(0,((x-dx)*(R.mw-1)+.5)|0))]/255}
- return(x,y,r,g,b)=>{let a=f(x,y,r,g,b);if(L.inv)a=1-a;return a*L.op}}
+ return(x,y,r,g,b)=>{let a=f(x,y,r,g,b);if(L.inv)a=1-a;return a*L.op*vs}}
 /* per-mask grade + painter colour mixing (2 colours, 6 blend modes, 4 mix styles) */
 const hex=s=>{const n=parseInt(s.slice(1),16);return[(n>>16)/255,((n>>8)&255)/255,(n&255)/255]},lum=a=>.2126*a[0]+.7152*a[1]+.0722*a[2];
 const BL={normal:(c,p)=>p,multiply:(c,p)=>c*p,screen:(c,p)=>1-(1-c)*(1-p),overlay:(c,p)=>c<.5?2*c*p:1-2*(1-c)*(1-p),soft:(c,p)=>(1-2*p)*c*c+2*p*c};
@@ -75,7 +75,7 @@ function maskPage(name){return p=>{const kinds=MG[name],all=ML().map((l,i)=>[l,i
    el('button',l.on?'On':'Off',()=>{l.on=!l.on;update();commit();re()},r);
    el('button','Track',()=>trackLayer(l),r);
    el('button','Delete',()=>{ML().splice(i,1);selM=0;update();commit();re()},r)})}
- el('button','Track all',async()=>{for(const l of ML())if(l.on)await trackLayer(l)},c1);
+ el('button','Track all',()=>trackLayers(ML().filter(l=>l.on)),c1);
  if(!L)return;const T=L.type;
  const tg=(box,t,get,fn)=>el('button',t,()=>{fn();update();commit();re()},box).classList.toggle('on',!!get());
  el('p',HINT[T],null,c1).className='hint';
